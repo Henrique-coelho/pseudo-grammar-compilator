@@ -1,10 +1,8 @@
-package main;
-
 import lexical.LexicalAnalysis;
 import lexical.LexicalException;
 import lexical.TokenType;
 
-public class Compiler {
+public class Main {
     public static void main(String[] args) throws LexicalException {
         System.out.println(args[0]);
         if (args.length != 1) {
