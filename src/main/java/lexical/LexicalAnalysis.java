@@ -46,6 +46,7 @@ public class LexicalAnalysis implements AutoCloseable {
                         state = 1;
                     } else if(c=='\n') {
                         line++;
+                        System.out.println("Line "+line+"!");
                         state = 1;
                     } else if(c=='*') {
                         state = 2;
@@ -86,13 +87,14 @@ public class LexicalAnalysis implements AutoCloseable {
                 case 2: // Multiplicação
                     ungetc(c);
                     lex.token += '*';
-                    state = 200;
+                    state = 201;
                     break;
                 case 3: // Comentário de mais de uma linha
                     if (c == '*') {
                         state = 4;
                     } else if (c == '\n') {
                         line++;
+                        System.out.println("Line "+line+"!");
                         state = 4;
                     }
                     break;
@@ -117,6 +119,7 @@ public class LexicalAnalysis implements AutoCloseable {
                 case 6: // Comentário normal
                     if (c == '\n') {
                         line ++;
+                        System.out.println("Line "+line+"!");
                         state = 1;
                     } else if(c == -1) { // EOF
                         lex.type = TokenType.END_OF_FILE;
@@ -167,7 +170,6 @@ public class LexicalAnalysis implements AutoCloseable {
                         lex.token += (char) c;
                     } else {
                         ungetc(c);
-                        lex.token += (char) c;
                         state = 200;
                     }
                     state = 201;
