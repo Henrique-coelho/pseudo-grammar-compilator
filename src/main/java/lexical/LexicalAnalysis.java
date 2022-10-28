@@ -63,7 +63,7 @@ public class LexicalAnalysis implements AutoCloseable {
                     } else if(c=='<'){
                         lex.token += (char) c;
                         state = 12;
-                    } else if(c=='+' || c=='-' || c=='/' || c=='{' || c=='}' || c=='(' || c==')' || c=='.' || c==';' || c=='!' || c==','){
+                    } else if(c=='+' || c=='-' || c=='/' || c=='(' || c==')' || c=='.' || c==';' || c=='!' || c==','){
                         lex.token += (char) c;
                         state = 201;
                     } else if(c=='|') {
@@ -218,7 +218,7 @@ public class LexicalAnalysis implements AutoCloseable {
         if (state == 201)
             lex.type = st.find(lex.token);
 
-        System.out.println("Token: ( '" + lex.token + " '), Type: " + lex.type + ", Line: " + getLine());
+        //System.out.println("Token: ( '" + lex.token + " '), Type: " + lex.type + ", Line: " + getLine());
         return lex;
     }
 

@@ -1,6 +1,7 @@
 import lexical.LexicalAnalysis;
 import lexical.LexicalException;
 import lexical.TokenType;
+import syntatic.SyntaticAnalysis;
 
 public class Main {
     public static void main(String[] args) throws LexicalException {
@@ -11,13 +12,8 @@ public class Main {
         }
 
         try (LexicalAnalysis l = new LexicalAnalysis(args[0])) {
-            TokenType token = l.nextToken().type;
-            while(checkType(token)){
-
-                //System.out.printf("token: %s", token.toString());
-                token = l.nextToken().type;
-            }
-
+            SyntaticAnalysis s = new SyntaticAnalysis(l);
+            s.start();
         } catch (Exception e) {
             System.err.println("Internal error: " + e.getMessage());
         }
