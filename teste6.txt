@@ -15,5 +15,5 @@ start
         n1 = n2;
         n2 = auxiliar;
         termos = termos -1;
-    while(termos>0)
+    while(termos>0)end
 exit

@@ -191,12 +191,10 @@ public class SyntaticAnalysis {
         procStmtList();
         if(current.type == TokenType.END){
             advance();
-        } else if(current.type == TokenType.ID ||
-                current.type == TokenType.IF ||
-                current.type == TokenType.DO ||
-                current.type == TokenType.SCAN ||
-                current.type == TokenType.PRINT){
+        } else if(current.type == TokenType.ELSE){
+            advance();
             procStmtList();
+            eat(TokenType.END);
         } else {
             showError();
         }
