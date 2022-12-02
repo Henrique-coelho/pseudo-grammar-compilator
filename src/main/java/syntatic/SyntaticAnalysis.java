@@ -4,6 +4,9 @@ import lexical.Lexeme;
 import lexical.LexicalAnalysis;
 import lexical.LexicalException;
 import lexical.TokenType;
+import semantic.Axiom;
+import semantic.AxiomTable;
+import semantic.SemanticException;
 
 import java.io.IOException;
 
@@ -11,6 +14,7 @@ public class SyntaticAnalysis {
 
     private LexicalAnalysis lex;
     private Lexeme current;
+    private AxiomTable axs;
 
     public SyntaticAnalysis(LexicalAnalysis lex) throws LexicalException {
         this.lex = lex;
@@ -29,8 +33,9 @@ public class SyntaticAnalysis {
         }
     }
 
-    private void eat(TokenType type) throws LexicalException {
-        if (type == current.type) {
+    private String eat(TokenType type) throws LexicalException {
+        Lexeme food = current;
+        if (type == food.type) {
             try {
                 current = lex.nextToken();
             } catch (IOException e) {
@@ -39,6 +44,7 @@ public class SyntaticAnalysis {
         } else {
             showError();
         }
+        return food.token;
     }
 
     private void showError() {
@@ -59,7 +65,7 @@ public class SyntaticAnalysis {
         System.exit(1);
     }
 
-    public void start() throws LexicalException{
+    public void start() throws LexicalException,SemanticException{
         System.out.println(" *** Program Started *** ");
         procProgram();
         eat(TokenType.END_OF_FILE);
@@ -67,7 +73,7 @@ public class SyntaticAnalysis {
     }
 
     //program ::= start [decl-list] stmt-list exit
-    private void procProgram() throws LexicalException {
+    private void procProgram() throws LexicalException,SemanticException {
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         eat(TokenType.START);
@@ -132,7 +138,7 @@ public class SyntaticAnalysis {
 
 
     //stmt-list ::= stmt | {stmt}
-    private void procStmtList() throws LexicalException{
+    private void procStmtList() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         procStatement();
@@ -148,7 +154,7 @@ public class SyntaticAnalysis {
     }
 
     //stmt ::= assign-stmt ";" | if-stmt | while-stmt | read-stmt ";" | write-stmt ";"
-    private void procStatement() throws LexicalException{
+    private void procStatement() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         if(current.type == TokenType.ID) {
@@ -172,7 +178,7 @@ public class SyntaticAnalysis {
     }
 
     //assign-stmt ::= identifier "=" simple_expr
-    private void procAssign() throws LexicalException{
+    private void procAssign() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         procId();
@@ -182,7 +188,7 @@ public class SyntaticAnalysis {
         System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
     }
     //if-stmt ::= if condition then stmt-list end | if condition then stmt-list else stmt-list end
-    private void procIf() throws LexicalException{
+    private void procIf() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         eat(TokenType.IF);
@@ -203,7 +209,7 @@ public class SyntaticAnalysis {
     }
 
     //condition ::= expression
-    private void procCond() throws  LexicalException{
+    private void procCond() throws  LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         procExpr();
@@ -212,7 +218,7 @@ public class SyntaticAnalysis {
     }
 
     // while-stmt ::= do stmt-list stmt-sufix
-    private void procWhile() throws LexicalException{
+    private void procWhile() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         eat(TokenType.DO);
@@ -223,7 +229,7 @@ public class SyntaticAnalysis {
     }
 
     //stmt-sufix ::= while condition end
-    private void procSufix() throws LexicalException{
+    private void procSufix() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         eat(TokenType.WHILE);
@@ -246,7 +252,7 @@ public class SyntaticAnalysis {
     }
 
     //write-stmt ::= print "(" writable ")"
-    private void procWrite() throws LexicalException{
+    private void procWrite() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         eat(TokenType.PRINT);
@@ -258,7 +264,7 @@ public class SyntaticAnalysis {
     }
 
     //writable ::= simple-expr | literal
-    private void procWritable() throws LexicalException{
+    private void procWritable() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         if(current.type == TokenType.STRING){
@@ -271,7 +277,7 @@ public class SyntaticAnalysis {
     }
 
     //expression ::= simple-expr | simple-expr relop simple-expr
-    private void procExpr() throws LexicalException{
+    private Axiom procExpr() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         procSimpleExpr();
@@ -286,10 +292,11 @@ public class SyntaticAnalysis {
         }
 
         System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+        return null;
     }
 
     //simple-expr ::= term | simple-expr addop term
-    private void procSimpleExpr() throws LexicalException{
+    private void procSimpleExpr() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         procTerm();
@@ -302,7 +309,7 @@ public class SyntaticAnalysis {
     }
 
     //term ::= factor-a | term mulop factor-a
-    private void procTerm() throws LexicalException{
+    private void procTerm() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         procFactorAct();
@@ -315,146 +322,125 @@ public class SyntaticAnalysis {
     }
 
     //fator-a ::= factor | "!" factor | "-" factor
-    private void procFactorAct() throws  LexicalException{
-        System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
-
+    private Axiom procFactorAct() throws  LexicalException,SemanticException{
         if(current.type == TokenType.ID || current.type == TokenType.INTEGER || current.type == TokenType.FLOAT || current.type == TokenType.STRING || current.type == TokenType.OPEN_BRA){
-            procFactor();
+            return procFactor();
         } else if(current.type==TokenType.EXCLAMATION){
             eat(TokenType.EXCLAMATION);
             procFactor();
+            //TODO modificar classe axiom para possuir valores flexiveis
+            //TODO prosseguir a modificar todos os procs
         } else if(current.type==TokenType.SUB){
             eat(TokenType.SUB);
             procFactor();
         }
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+        return null;
     }
 
     //factor ::= identifier | constant | "(" expression ")"
-    private void procFactor() throws LexicalException{
+    private Axiom procFactor() throws LexicalException,SemanticException{
         System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
 
         if(current.type == TokenType.ID){
-            procId();
+            String id = procId();
+            if(axs.contains(id))
+                return axs.get(id);
+            else
+                throw new SemanticException(id+" não está inserido na tabela");
         } else if(current.type == TokenType.INTEGER || current.type == TokenType.FLOAT || current.type == TokenType.STRING){
-            procConstant();
+            return procConstant();
         } else if(current.type == TokenType.OPEN_BRA){
             eat(TokenType.OPEN_BRA);
-            procExpr();
+            Axiom ax = procExpr();
             eat(TokenType.CLOSE_BRA);
+            return ax;
         } else {
             showError();
         }
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+        return null;
     }
 
     //relop ::= "==" | ">" | ">=" | "<" | "<=" | "<>"
-    private void procRelOp() throws LexicalException {
-        System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
-
+    private String procRelOp() throws LexicalException {
         if (current.type == TokenType.EQUALS){
-            advance();
+            return eat(TokenType.EQUALS);
         } else if (current.type == TokenType.GREATER) {
-            advance();
+            return eat(TokenType.GREATER);
         } else if (current.type == TokenType.GREATER_EQ) {
-            advance();
+            return eat(TokenType.GREATER_EQ);
         } else if (current.type == TokenType.LOWER) {
-            advance();
+            return eat(TokenType.LOWER);
         } else if (current.type == TokenType.LOWER_EQ) {
-            advance();
+            return eat(TokenType.LOWER_EQ);
         } else if(current.type == TokenType.NOT_EQUALS) {
-            advance();
+            return eat(TokenType.NOT_EQUALS);
         } else {
             showError();
         }
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+        return null;
     }
 
     //addop ::= "+" | "-" | "||"
-    private void procAddOp() throws LexicalException {
-        System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
-
+    private String procAddOp() throws LexicalException {
         if (current.type == TokenType.ADD) {
-            eat(TokenType.ADD);
+            return eat(TokenType.ADD);
         } else if (current.type == TokenType.SUB) {
-            eat(TokenType.SUB);
+            return eat(TokenType.SUB);
         } else if (current.type == TokenType.OR) {
-            eat(TokenType.OR);
+            return eat(TokenType.OR);
         } else {
             showError();
         }
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+        return null;
     }
     //mulop ::= "*" | "/" | "&&"
-    private void procMulop() throws LexicalException {
-        System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
-
+    private String procMulop() throws LexicalException {
         if (current.type == TokenType.MUL) {
-            eat(TokenType.MUL);
+            return eat(TokenType.MUL);
         } else if (current.type == TokenType.DIV) {
-            eat(TokenType.DIV);
+            return eat(TokenType.DIV);
         } else if (current.type == TokenType.AND) {
-            eat(TokenType.AND);
+            return eat(TokenType.AND);
         } else {
             showError();
         }
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+        return null;
     }
     //constant ::= integer_const | float_const | literal
-    private void procConstant() throws LexicalException {
-        System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
-
+    private Axiom procConstant() throws LexicalException {
         if (current.type == TokenType.INTEGER) {
-            procIntegerConst();
+            return procIntegerConst();
         } else if (current.type == TokenType.FLOAT) {
-            procFloatConst();
+            return procFloatConst();
         } else if (current.type == TokenType.STRING) {
-            procLiteral();
+            return procLiteral();
         } else {
             showError();
         }
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+        return null;
     }
     //integer_const ::= digit integer_const_tail
-    private void procIntegerConst() throws LexicalException {
-        System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
-
-        eat(TokenType.INTEGER);
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+    private Axiom procIntegerConst() throws LexicalException {
+        String token = eat(TokenType.INTEGER);
+        return new Axiom("integer", token);
     }
 
     //float_const ::= integer_const “.” integer_const
-    private void procFloatConst() throws LexicalException {
-        System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
-
-        eat(TokenType.FLOAT);
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+    private Axiom procFloatConst() throws LexicalException {
+        String token = eat(TokenType.FLOAT);
+        return new Axiom("float", token);
     }
 
     //literal ::= "{" literal-rept "}"
-    private void procLiteral() throws LexicalException {
-        System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
-
-        eat(TokenType.STRING);
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+    private Axiom procLiteral() throws LexicalException {
+        String token = eat(TokenType.STRING);
+        return new Axiom("string", token);
     }
 
     //identifier ::= letter-under identifier-tail
-    private void procId() throws LexicalException {
-        System.out.println("Entering:"+new Object(){}.getClass().getEnclosingMethod().getName());
-
-        eat(TokenType.ID);
-
-        System.out.println("Exiting:"+new Object(){}.getClass().getEnclosingMethod().getName());
+    private String procId() throws LexicalException {
+        String token = eat(TokenType.ID);
+        return token;
     }
 
     //letter-digit ::= letter | digit (sem proc)
