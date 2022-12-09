@@ -1,16 +1,16 @@
 start
-    int n, m, auxiliar, i, termos, n1, n2;
+    int n, m, auxiliar, i, termos, n1, n2, b;
     n = 0;
     m = 1;
-    print("Digite a quantidade de termos:");
+    print({Digite a quantidade de termos:});
     scan(termos);
-    print("\nSérie de fibonacci: ");
+    print({\nSérie de fibonacci: });
     print(b);
-    print("\n");
+    print({\n});
     auxiliar = 0;
     do
         print(n);
-        print(" ");
+        print({ });
         auxiliar = n1 + n2;
         n1 = n2;
         n2 = auxiliar;

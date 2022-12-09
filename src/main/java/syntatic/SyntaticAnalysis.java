@@ -10,16 +10,22 @@ import semantic.Type;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class SyntaticAnalysis {
 
     private LexicalAnalysis lex;
     private Lexeme current;
     private TypeTable tt;
+    private List<Integer> errorList;
+    private int probErrorLine;
 
     public SyntaticAnalysis(LexicalAnalysis lex) throws LexicalException {
         this.lex = lex;
+        this.tt = new TypeTable();
+        this.errorList = new ArrayList<>();
         try {
             this.current = lex.nextToken();
         } catch (IOException e) {
@@ -70,8 +76,15 @@ public class SyntaticAnalysis {
     public void start() throws LexicalException,SemanticException{
         Type type = procProgram();
         eat(TokenType.END_OF_FILE);
-        if(type == Type.ERROR)
-            throw new SemanticException("Erro semântico!");
+        if(type == Type.ERROR) {
+            StringBuilder sb = new StringBuilder();
+            errorList.forEach(line -> {
+                sb.append("\n");
+                sb.append("Erro na linha "+(line));
+            });
+            throw new SemanticException("Erro semântico! "+sb);
+        }
+
     }
 
     //program ::= start [decl-list] stmt-list exit
@@ -80,15 +93,20 @@ public class SyntaticAnalysis {
 
         Type type = Type.VOID;
         while (current.type == TokenType.STRING_KW || current.type == TokenType.INTEGER_KW || current.type == TokenType.FLOAT_KW){
+            this.probErrorLine = this.lex.getLine();
             Type type1 = procDeclList();
-            if(!(type == Type.VOID && type1 == Type.VOID))
+            if (type1 != Type.VOID) {
+                errorList.add(this.probErrorLine);
+            }
+            if (!(type == Type.VOID && type1 == Type.VOID)) {
                 type = Type.ERROR;
+            }
         }
         Type type2 = procStmtList();
-        if(type == Type.VOID && type2 == Type.VOID)
+        if(!(type == Type.VOID && type2 == Type.VOID))
             type = Type.ERROR;
         eat(TokenType.EXIT);
-        return Type.ERROR;
+        return type;
     }
 
     //decl-list ::= decl {decl}
@@ -144,17 +162,25 @@ public class SyntaticAnalysis {
 
     //stmt-list ::= stmt | {stmt}
     private Type procStmtList() throws LexicalException{
+        this.probErrorLine = this.lex.getLine();
         Type type = procStatement();
+        if (type != Type.VOID) {
+            errorList.add(this.probErrorLine);
+        }
         while(current.type == TokenType.ID ||
                 current.type == TokenType.IF ||
                 current.type == TokenType.DO ||
                 current.type == TokenType.SCAN ||
                 current.type == TokenType.PRINT){
+            this.probErrorLine = this.lex.getLine();
             Type type1 = procStatement();
             if(type == Type.VOID && type1 == Type.VOID)
                 type = Type.VOID;
             else
                 type = Type.ERROR;
+            if (type1 != Type.VOID) {
+                errorList.add(this.probErrorLine);
+            }
         }
         return type;
     }
@@ -300,10 +326,18 @@ public class SyntaticAnalysis {
                 current.type == TokenType.NOT_EQUALS){
             String op = procRelOp();
             Type type2 = procSimpleExpr();
-            if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT))
-                type1 = Type.INTEGER;
-            else
-                type1 = Type.ERROR;
+            if ("==".equals(op)) {
+                if(((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)) || (type1==Type.STRING && type2==Type.STRING))
+                    type1 = Type.INTEGER;
+                else
+                    type1 = Type.ERROR;
+            } else {
+                if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT))
+                    type1 = Type.INTEGER;
+                else
+                    type1 = Type.ERROR;
+            }
+
         }
         return type1;
     }
@@ -314,13 +348,13 @@ public class SyntaticAnalysis {
         while(current.type == TokenType.ADD || current.type == TokenType.SUB || current.type == TokenType.OR){
             String op = procAddOp();
             Type type2 = procSimpleExpr();
-            if(op=="||"){
+            if(op.equals("||")){
                 if(type1==Type.INTEGER && type2==Type.INTEGER)
                     type1 = Type.INTEGER;
                 else
                     type1 = Type.ERROR;
 
-            } else if(op=="+"){
+            } else if(op.equals("+")){
                 if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
                     if(type1==Type.INTEGER && type2==Type.INTEGER)
                         type1 = Type.INTEGER;
@@ -332,7 +366,7 @@ public class SyntaticAnalysis {
                 }
                 else
                     type1 = Type.ERROR;
-            } else if(op=="-"){
+            } else if(op.equals("-")){
                 if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
                     if(type1==Type.INTEGER && type2==Type.INTEGER)
                         type1 = Type.INTEGER;
@@ -352,12 +386,12 @@ public class SyntaticAnalysis {
         while(current.type == TokenType.MUL || current.type == TokenType.DIV || current.type == TokenType.AND){
             String op = procMulop();
             Type type2 = procTerm();
-            if(op=="&&"){
+            if("&&".equals(op)){
                 if(type1==Type.INTEGER && type2==Type.INTEGER)
                     type1 = Type.INTEGER;
                 else
                     type1 = Type.ERROR;
-            } else if(op=="*"){
+            } else if("*".equals(op)){
                 if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
                     if(type1==Type.INTEGER && type2==Type.INTEGER)
                         type1 = Type.INTEGER;
@@ -366,7 +400,7 @@ public class SyntaticAnalysis {
                 }
                 else
                     type1 = Type.ERROR;
-            } else if(op=="/"){
+            } else if("/".equals(op)){
                 if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
                     if(type1==Type.INTEGER && type2==Type.INTEGER)
                         type1 = Type.INTEGER;

@@ -1,13 +1,12 @@
 start
  int a, aux, b;
  string nome, sobrenome, msg;
- print("Nome: ");
+ print({Nome: });
  scan (nome);
- print("Sobrenome: ");
+ print({Sobrenome: });
  scan (sobrenome);
- msg = "Ola, " + nome + " " +
-sobrenome + "!";
- msg = msg + 1;
+ msg = {Ola, } + nome + { } + sobrenome + {!};
+ msg = msg + {1};
  print (msg);
  scan (a);
  scan(b);
@@ -16,7 +15,7 @@ sobrenome + "!";
  b = a;
  a = aux;
  end
- print ("Apos a troca: ");
+ print ({Apos a troca: });
  print(a);
  print(b);
 exit

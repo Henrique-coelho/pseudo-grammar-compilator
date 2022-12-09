@@ -73,7 +73,7 @@ public class LexicalAnalysis implements AutoCloseable {
                     } else if(c=='&') {
                         lex.token += (char) c;
                         state = 14;
-                    } else if(c=='\"') {
+                    } else if(c=='{') {
                         state = 15;
                     } else if(c == -1) { // EOF
                         lex.type = TokenType.END_OF_FILE;
@@ -203,7 +203,7 @@ public class LexicalAnalysis implements AutoCloseable {
                     }
                     break;
                 case 15: // String
-                    if(c=='\"'){
+                    if(c=='}'){
                         lex.type = TokenType.STRING;
                         state = 200;
                     } else if(c!='\n'){

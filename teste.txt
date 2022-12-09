@@ -1,3 +1,0 @@
-start
-print ("Resultado: ");
-exit
