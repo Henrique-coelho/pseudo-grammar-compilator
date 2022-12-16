@@ -1,30 +1,36 @@
 package syntatic;
 
+import generator.Code;
+import generator.addresses.*;
 import lexical.Lexeme;
 import lexical.LexicalAnalysis;
 import lexical.LexicalException;
 import lexical.TokenType;
-import semantic.TypeTable;
+import generator.CurrentSymbolTable;
 import semantic.SemanticException;
-import semantic.Type;
+import generator.Type;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 public class SyntaticAnalysis {
 
     private LexicalAnalysis lex;
     private Lexeme current;
-    private TypeTable tt;
+
+    private CurrentSymbolTable top;
+    private Code code;
+
     private List<Integer> errorList;
     private int probErrorLine;
 
     public SyntaticAnalysis(LexicalAnalysis lex) throws LexicalException {
         this.lex = lex;
-        this.tt = new TypeTable();
+        this.top = new CurrentSymbolTable();
+        this.code = new Code();
+
         this.errorList = new ArrayList<>();
         try {
             this.current = lex.nextToken();
@@ -73,8 +79,9 @@ public class SyntaticAnalysis {
         System.exit(1);
     }
 
-    public void start() throws LexicalException,SemanticException{
+    public void start() throws LexicalException,SemanticException,Exception{
         Type type = procProgram();
+        System.out.println(code.toString());
         eat(TokenType.END_OF_FILE);
         if(type == Type.ERROR) {
             StringBuilder sb = new StringBuilder();
@@ -84,11 +91,10 @@ public class SyntaticAnalysis {
             });
             throw new SemanticException("Erro semântico! "+sb);
         }
-
     }
 
     //program ::= start [decl-list] stmt-list exit
-    private Type procProgram() throws LexicalException {
+    private Type procProgram() throws Exception {
         eat(TokenType.START);
 
         Type type = Type.VOID;
@@ -102,7 +108,9 @@ public class SyntaticAnalysis {
                 type = Type.ERROR;
             }
         }
-        Type type2 = procStmtList();
+        Expression expr = procStmtList();
+        Type type2 = expr.type();
+
         if(!(type == Type.VOID && type2 == Type.VOID))
             type = Type.ERROR;
         eat(TokenType.EXIT);
@@ -126,8 +134,10 @@ public class SyntaticAnalysis {
 
         Type type_l = Type.VOID;
         for (String id:idList) {
-            if(!tt.insert(id,type))
+            if(!top.put(new NameAddress(id,type)))
                 type_l = Type.ERROR;
+            else
+                code.emit(type.toString()+" "+id);
         }
         eat(TokenType.SEMICOLON);
         return type_l;
@@ -161,9 +171,12 @@ public class SyntaticAnalysis {
 
 
     //stmt-list ::= stmt | {stmt}
-    private Type procStmtList() throws LexicalException{
+    private Expression procStmtList() throws Exception{
         this.probErrorLine = this.lex.getLine();
-        Type type = procStatement();
+        Expression expr = procStatement();
+        Type type = expr.type();
+
+
         if (type != Type.VOID) {
             errorList.add(this.probErrorLine);
         }
@@ -173,151 +186,210 @@ public class SyntaticAnalysis {
                 current.type == TokenType.SCAN ||
                 current.type == TokenType.PRINT){
             this.probErrorLine = this.lex.getLine();
-            Type type1 = procStatement();
-            if(type == Type.VOID && type1 == Type.VOID)
+            Expression stmtExpr = procStatement();
+            Type stmtType = stmtExpr.type();
+
+            if(type == Type.VOID && stmtType == Type.VOID)
                 type = Type.VOID;
             else
                 type = Type.ERROR;
-            if (type1 != Type.VOID) {
+            if (stmtType != Type.VOID) {
                 errorList.add(this.probErrorLine);
             }
         }
-        return type;
+        Expression listExpr = new Expression(type == Type.ERROR);
+        return listExpr;
     }
 
     //stmt ::= assign-stmt ";" | if-stmt | while-stmt | read-stmt ";" | write-stmt ";"
-    private Type procStatement() throws LexicalException{
+    private Expression procStatement() throws Exception{
+        Expression stmtExpr = new Expression(false);
         Type type;
+
         if(current.type == TokenType.ID) {
-            type = procAssign();
+            stmtExpr = procAssign();
             eat(TokenType.SEMICOLON);
-            return type;
+            return stmtExpr;
         } else if(current.type == TokenType.IF){
-            type = procIf();
-            return type;
+            stmtExpr = procIf();
+            return stmtExpr;
         } else if(current.type == TokenType.DO) {
-            type = procWhile();
-            return type;
+            stmtExpr = procWhile();
+            return stmtExpr;
         } else if(current.type == TokenType.SCAN) {
-            type = procRead();
+            stmtExpr = procRead();
             eat(TokenType.SEMICOLON);
-            return type;
+            return stmtExpr;
         } else if(current.type == TokenType.PRINT) {
-            type = procWrite();
+            stmtExpr = procWrite();
             eat(TokenType.SEMICOLON);
-            return type;
+            return stmtExpr;
         } else {
             showLexicalOrSyntaticError();
-            return Type.ERROR;
+            return null;
         }
     }
 
     //assign-stmt ::= identifier "=" simple_expr
-    private Type procAssign() throws LexicalException{
+    private Expression procAssign() throws LexicalException{
         String id = procId();
         eat(TokenType.ASSIGN);
-        Type type = procSimpleExpr();
+        Expression expr = procSimpleExpr();
+        Type type = expr.type();
 
-        if(tt.get(id) == type)
-            return Type.VOID;
+        NameAddress addr = top.get(id);
+        Expression assExpr;
+        if(type == addr.type()){
+            code.emit(addr.value()+" = "+expr.addr());
+            assExpr = new Expression(false);
+        }
         else
-            return Type.ERROR;
+            assExpr = new Expression(true);
+
+        return assExpr;
     }
 
     //if-stmt ::= if condition then stmt-list end | if condition then stmt-list else stmt-list end
-    private Type procIf() throws LexicalException{
+    private Expression procIf() throws Exception{
         eat(TokenType.IF);
-        Type typec = procCond();
+
+        Expression boolExpr = procCond();
+        Type boolType = boolExpr.type();
+
+        int m1 = code.nextInst();
+        code.emit("if "+boolExpr.addr()+" goto @@@","@@@");
+        code.emit("goto @@@","@@@");
         eat(TokenType.THEN);
-        Type type1 = procStmtList();
+
+        int m2 = code.nextInst();
+        Expression listExpr = procStmtList();
+        Type listType = listExpr.type();
 
         if(current.type == TokenType.END){
             advance();
 
-            if(typec == Type.INTEGER && type1 == Type.VOID)
-                return Type.VOID;
-            else
-                return Type.ERROR;
-        } else if(current.type == TokenType.ELSE){
-            advance();
-            Type type2 = procStmtList();
+            int m3 = code.nextInst();
+            Expression ifExpr = new Expression(!(boolType == Type.INTEGER && listType == Type.VOID));
+
+            Integer[] truelist = {m1};
+            Integer[] falselist = {m1+1};
+            code.backpatch(Arrays.asList(truelist),m2);
+            code.backpatch(Arrays.asList(falselist),m3);
+            return ifExpr;
+        } else {
+            eat(TokenType.ELSE);
+
+            int m3 = code.nextInst();
+            code.emit("goto @@@","@@@");
+            Expression elseExpr = procStmtList();
+            Type elseType = elseExpr.type();
+            Expression ifExpr = new Expression(!(boolType == Type.INTEGER && listType == Type.VOID && elseType == Type.VOID));
+
+            int m4 = code.nextInst();
             eat(TokenType.END);
 
-            if(typec == Type.INTEGER && type1 == Type.VOID && type2 == Type.VOID)
-                return Type.VOID;
-            else
-                return Type.ERROR;
-        } else {
-            showLexicalOrSyntaticError();
-            return Type.ERROR;
+            Integer[] iflist = {m1};
+            Integer[] elselist = {m1+1};
+            Integer[] endlist = {m3};
+            code.backpatch(Arrays.asList(iflist),m2);
+            code.backpatch(Arrays.asList(elselist),m3+1);
+            code.backpatch(Arrays.asList(endlist),m4);
+
+            return ifExpr;
         }
     }
 
     //condition ::= expression
-    private Type procCond() throws  LexicalException{
+    private Expression procCond() throws  LexicalException{
         return procExpr();
     }
 
     // while-stmt ::= do stmt-list stmt-sufix
-    private Type procWhile() throws LexicalException{
+    private Expression procWhile() throws Exception{
         eat(TokenType.DO);
-        Type type1 = procStmtList();
-        Type type2 = procSufix();
 
-        if(type1 == Type.VOID && type2 == Type.VOID)
-            return Type.VOID;
-        else
-            return Type.ERROR;
+        int m1 = code.nextInst();
+        Expression actExpr = procStmtList();
+        Type actType = actExpr.type();
+
+        Expression boolExpr = procSufix();
+        Type boolType = boolExpr.type();
+        int m2 = code.nextInst();
+
+        Expression whileExpr = new Expression(!(actType == Type.VOID && boolType == Type.VOID));
+        whileExpr.addToNextList(boolExpr.getFalselist());
+        code.backpatch(boolExpr.getTruelist(),m1);
+        code.backpatch(boolExpr.getFalselist(),m2);
+        return whileExpr;
     }
 
     //stmt-sufix ::= while condition end
-    private Type procSufix() throws LexicalException{
+    private Expression procSufix() throws Exception{
         eat(TokenType.WHILE);
-        Type type = procCond();
+        Expression boolExpr = procCond();
+        Type type = boolExpr.type();
+        int m = code.nextInst();
         eat(TokenType.END);
 
-        if(type == Type.INTEGER)
-            return Type.VOID;
-        else
-            return Type.ERROR;
+        Expression whileExpr = new Expression(type != Type.INTEGER);
+        int[] truelist = {m};
+        int[] falselist = {m+1};
+        whileExpr.addToTrueList(truelist);
+        whileExpr.addToFalseList(falselist);
+        code.emit("if "+boolExpr.addr()+" goto @@@","@@@");
+        code.emit("goto @@@", "@@@");
+        return whileExpr;
     }
 
     //read-stmt ::= scan "(" identifier ")"
-    private Type procRead() throws LexicalException{
+    private Expression procRead() throws LexicalException{
         eat(TokenType.SCAN);
         eat(TokenType.OPEN_BRA);
         String id = procId();
         eat(TokenType.CLOSE_BRA);
 
-        if(tt.contains(id))
-            return Type.VOID;
+        Expression expr;
+        if(top.contains(id)){
+            code.emit("scan "+id);
+            expr = new Expression(false);
+        }
         else
-            return Type.ERROR;
+            expr = new Expression(true);
+        return expr;
     }
 
     //write-stmt ::= print "(" writable ")"
-    private Type procWrite() throws LexicalException{
+    private Expression procWrite() throws LexicalException{
         eat(TokenType.PRINT);
         eat(TokenType.OPEN_BRA);
-        Type type = procWritable();
-        if(!(type==Type.ERROR))
-            type = Type.VOID;
+        Expression expr = procWritable();
+        Type type = expr.type();
+
+        if(!(type==Type.ERROR)) {
+            code.emit("out " + expr.addr());
+            expr = new Expression(false);
+        }
+        else{
+            expr = new Expression(true);
+        }
         eat(TokenType.CLOSE_BRA);
-        return type;
+        return expr;
     }
 
     //writable ::= simple-expr | literal
-    private Type procWritable() throws LexicalException{
+    private Expression procWritable() throws LexicalException{
         if(current.type == TokenType.STRING){
-            return procLiteral();
+            return new Expression(procLiteral());
         } else {
             return procSimpleExpr();
         }
     }
 
     //expression ::= simple-expr | simple-expr relop simple-expr
-    private Type procExpr() throws LexicalException{
-        Type type1 = procSimpleExpr();
+    private Expression procExpr() throws LexicalException{
+        Expression expr1 = procSimpleExpr();
+        Type type1 = expr1.type();
+
         while(current.type == TokenType.EQUALS ||
                 current.type == TokenType.GREATER ||
                 current.type == TokenType.GREATER_EQ ||
@@ -325,115 +397,208 @@ public class SyntaticAnalysis {
                 current.type == TokenType.LOWER_EQ ||
                 current.type == TokenType.NOT_EQUALS){
             String op = procRelOp();
-            Type type2 = procSimpleExpr();
+            Expression expr2 = procSimpleExpr();
+            Type type2 = expr2.type();
+
+            Address newAddr;
             if ("==".equals(op)) {
                 if(((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)) || (type1==Type.STRING && type2==Type.STRING))
-                    type1 = Type.INTEGER;
+                    newAddr = new TempAddress(Type.INTEGER);
                 else
-                    type1 = Type.ERROR;
+                    newAddr = new TempAddress(Type.ERROR);
+
+                Expression eqExpr = new Expression(newAddr);
+                code.emit(eqExpr.addr()+" = "+expr1.addr()+" == "+expr2.addr());
+                expr1 = eqExpr;
+                type1 = eqExpr.type();
             } else {
                 if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT))
-                    type1 = Type.INTEGER;
+                    newAddr = new TempAddress(Type.INTEGER);
                 else
-                    type1 = Type.ERROR;
+                    newAddr = new TempAddress(Type.ERROR);
+
+                Expression finalExpr = new Expression(newAddr);
+                code.emit(finalExpr.addr()+" = "+expr1.addr()+" "+op+" "+expr2.addr());
+                expr1 = finalExpr;
+                type1 = finalExpr.type();
             }
 
         }
-        return type1;
+        return expr1;
     }
 
     //simple-expr ::= term | simple-expr addop term
-    private Type procSimpleExpr() throws LexicalException{
-        Type type1 = procTerm();
+    private Expression procSimpleExpr() throws LexicalException{
+        Expression expr1 = procTerm();
+        Type type1 = expr1.type();
+
         while(current.type == TokenType.ADD || current.type == TokenType.SUB || current.type == TokenType.OR){
             String op = procAddOp();
-            Type type2 = procSimpleExpr();
+            Expression expr2 = procSimpleExpr();
+            Type type2 = expr2.type();
+
+            Address newAddr;
             if(op.equals("||")){
                 if(type1==Type.INTEGER && type2==Type.INTEGER)
-                    type1 = Type.INTEGER;
+                    newAddr = new TempAddress(Type.INTEGER);
                 else
-                    type1 = Type.ERROR;
+                    newAddr = new TempAddress(Type.ERROR);
+
+                Expression orExpr = new Expression(newAddr);
+                code.emit(orExpr.addr()+" = "+expr1.addr()+" || "+expr2.addr());
+                expr1 = orExpr;
+                type1 = orExpr.type();
 
             } else if(op.equals("+")){
                 if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
                     if(type1==Type.INTEGER && type2==Type.INTEGER)
-                        type1 = Type.INTEGER;
+                        newAddr = new TempAddress(Type.INTEGER);
                     else
-                        type1 = Type.FLOAT;
+                        newAddr = new TempAddress(Type.FLOAT);
+
+                    Expression addExpr = new Expression(newAddr);
+                    code.emit(addExpr.addr()+" = "+expr1.addr()+" + "+expr2.addr());
+                    expr1 = addExpr;
+                    type1 = addExpr.type();
                 }
                 else if(type1==Type.STRING && type2==Type.STRING){
-                    type1 = Type.STRING;
+                    newAddr = new TempAddress(Type.STRING);
+                    Expression addExpr = new Expression(newAddr);
+                    code.emit(addExpr.addr()+" = "+expr1.addr()+" + "+expr2.addr());
+                    expr1 = addExpr;
+                    type1 = addExpr.type();
                 }
-                else
-                    type1 = Type.ERROR;
+                else{
+                    newAddr = new TempAddress(Type.ERROR);
+
+                    Expression errExpr = new Expression(newAddr);
+                    code.emit(errExpr.addr()+" = "+expr1.addr()+" + "+expr2.addr());
+                    expr1 = errExpr;
+                    type1 = errExpr.type();
+                }
             } else if(op.equals("-")){
                 if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
                     if(type1==Type.INTEGER && type2==Type.INTEGER)
-                        type1 = Type.INTEGER;
+                        newAddr = new TempAddress(Type.INTEGER);
                     else
-                        type1 = Type.FLOAT;
+                        newAddr = new TempAddress(Type.FLOAT);
+
+                    Expression subExpr = new Expression(newAddr);
+                    code.emit(subExpr.addr()+" = "+expr1.addr()+" -"+expr2.addr());
+                    expr1 = subExpr;
+                    type1 = subExpr.type();
                 }
-                else
-                    type1 = Type.ERROR;
+                else{
+                    newAddr = new TempAddress(Type.ERROR);
+
+                    Expression errExpr = new Expression(newAddr);
+                    code.emit(errExpr.addr()+" = "+expr1.addr()+" - "+expr2.addr());
+                    expr1 = errExpr;
+                    type1 = errExpr.type();
+                }
             }
         }
-        return type1;
+        return expr1;
     }
 
     //term ::= factor-a | term mulop factor-a
-    private Type procTerm() throws LexicalException{
-        Type type1 = procFactorAct();
+    private Expression procTerm() throws LexicalException{
+        Expression expr1 = procFactorAct();
+        Type type1 = expr1.type();
+
         while(current.type == TokenType.MUL || current.type == TokenType.DIV || current.type == TokenType.AND){
             String op = procMulop();
-            Type type2 = procTerm();
+            Expression expr2 = procTerm();
+            Type type2 = expr2.type();
+
+            Address newAddr;
             if("&&".equals(op)){
                 if(type1==Type.INTEGER && type2==Type.INTEGER)
-                    type1 = Type.INTEGER;
+                    newAddr = new TempAddress(Type.INTEGER);
                 else
-                    type1 = Type.ERROR;
+                    newAddr = new TempAddress(Type.ERROR);
+
+                Expression andExpr = new Expression(newAddr);
+                code.emit(andExpr.addr()+" = "+expr1.addr()+" && "+expr2.addr());
+                expr1 = andExpr;
+                type1 = andExpr.type();
             } else if("*".equals(op)){
                 if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
                     if(type1==Type.INTEGER && type2==Type.INTEGER)
-                        type1 = Type.INTEGER;
+                        newAddr = new TempAddress(Type.INTEGER);
                     else
-                        type1 = Type.FLOAT;
+                        newAddr = new TempAddress(Type.FLOAT);
+
+                    Expression mulExpr = new Expression(newAddr);
+                    code.emit(mulExpr.addr()+" = "+expr1.addr()+" * "+expr2.addr());
+                    expr1 = mulExpr;
+                    type1 = mulExpr.type();
                 }
-                else
-                    type1 = Type.ERROR;
+                else{
+                    newAddr = new TempAddress(Type.ERROR);
+
+                    Expression errExpr = new Expression(newAddr);
+                    code.emit(errExpr.addr()+" = "+expr1.addr()+" * "+expr2.addr());
+                    expr1 = errExpr;
+                    type1 = errExpr.type();
+                }
             } else if("/".equals(op)){
                 if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
                     if(type1==Type.INTEGER && type2==Type.INTEGER)
-                        type1 = Type.INTEGER;
+                        newAddr = new TempAddress(Type.INTEGER);
                     else
-                        type1 = Type.FLOAT;
+                        newAddr = new TempAddress(Type.FLOAT);
+
+                    Expression divExpr = new Expression(newAddr);
+                    code.emit(divExpr.addr()+" = "+expr1.addr()+" / "+expr2.addr());
+                    expr1 = divExpr;
+                    type1 = divExpr.type();
                 }
-                else
-                    type1 = Type.ERROR;
+                else{
+                    newAddr = new TempAddress(Type.ERROR);
+
+                    Expression errExpr = new Expression(newAddr);
+                    code.emit(errExpr.addr()+" = "+expr1.addr()+" / "+expr2.addr());
+                    expr1 = errExpr;
+                    type1 = errExpr.type();
+                }
             }
         }
-        return type1;
+        return expr1;
     }
 
     //fator-a ::= factor | "!" factor | "-" factor
-    private Type procFactorAct() throws  LexicalException{
+    private Expression procFactorAct() throws  LexicalException{
         if(current.type == TokenType.ID || current.type == TokenType.INTEGER || current.type == TokenType.FLOAT || current.type == TokenType.STRING || current.type == TokenType.OPEN_BRA){
             return procFactor();
         } else if(current.type==TokenType.EXCLAMATION){
             eat(TokenType.EXCLAMATION);
-            Type type = procFactor();
+            Expression expr = procFactor();
+            Type type = expr.type();
+
+            Address newAddr;
             if(type == Type.INTEGER)
-                return Type.INTEGER;
+                newAddr = new TempAddress(Type.INTEGER);
             else
-                return Type.ERROR;
+                newAddr = new TempAddress(Type.ERROR);
+            Expression notExpr = new Expression(newAddr);
+            code.emit(notExpr.addr()+" = !"+expr.addr());
+            return notExpr;
         } else if(current.type==TokenType.SUB){
             eat(TokenType.SUB);
-            Type type = procFactor();
+            Expression expr = procFactor();
+            Type type = expr.type();
+
+            Address newAddr;
             if(type == Type.INTEGER)
-                return Type.INTEGER;
+                newAddr = new TempAddress(Type.INTEGER);
             else if(type == Type.FLOAT)
-                return Type.FLOAT;
+                newAddr = new TempAddress(Type.FLOAT);
             else
-                return Type.ERROR;
+                newAddr = new TempAddress(Type.ERROR);
+            Expression negExpr = new Expression(newAddr);
+            code.emit(negExpr.addr()+" = -"+expr.addr());
+            return negExpr;
         } else {
             showLexicalOrSyntaticError();
             return null;
@@ -441,17 +606,17 @@ public class SyntaticAnalysis {
     }
 
     //factor ::= identifier | constant | "(" expression ")"
-    private Type procFactor() throws LexicalException{
+    private Expression procFactor() throws LexicalException{
         if(current.type == TokenType.ID){
             String id = procId();
-            return tt.get(id);
+            return new Expression(top.get(id));
         } else if(current.type == TokenType.INTEGER || current.type == TokenType.FLOAT || current.type == TokenType.STRING){
             return procConstant();
         } else if(current.type == TokenType.OPEN_BRA){
             eat(TokenType.OPEN_BRA);
-            Type type = procExpr();
+            Expression expr = procExpr();
             eat(TokenType.CLOSE_BRA);
-            return type;
+            return expr;
         } else {
             showLexicalOrSyntaticError();
             return null;
@@ -491,6 +656,7 @@ public class SyntaticAnalysis {
             return null;
         }
     }
+
     //mulop ::= "*" | "/" | "&&"
     private String procMulop() throws LexicalException {
         if (current.type == TokenType.MUL) {
@@ -504,35 +670,37 @@ public class SyntaticAnalysis {
             return null;
         }
     }
+
     //constant ::= integer_const | float_const | literal
-    private Type procConstant() throws LexicalException {
+    private Expression procConstant() throws LexicalException {
         if (current.type == TokenType.INTEGER) {
-            return procIntegerConst();
+            return new Expression(procIntegerConst());
         } else if (current.type == TokenType.FLOAT) {
-            return procFloatConst();
+            return new Expression(procFloatConst());
         } else if (current.type == TokenType.STRING) {
-            return procLiteral();
+            return new Expression(procLiteral());
         } else {
             showLexicalOrSyntaticError();
         }
         return null;
     }
+
     //integer_const ::= digit integer_const_tail
-    private Type procIntegerConst() throws LexicalException {
-        eat(TokenType.INTEGER);
-        return Type.INTEGER;
+    private Address procIntegerConst() throws LexicalException {
+        String number = eat(TokenType.INTEGER);
+        return new ConstAddress(Integer.valueOf(number));
     }
 
     //float_const ::= integer_const “.” integer_const
-    private Type procFloatConst() throws LexicalException {
-        eat(TokenType.FLOAT);
-        return Type.FLOAT;
+    private Address procFloatConst() throws LexicalException {
+        String number = eat(TokenType.FLOAT);
+        return new ConstAddress(Float.valueOf(number));
     }
 
     //literal ::= "{" literal-rept "}"
-    private Type procLiteral() throws LexicalException {
-        eat(TokenType.STRING);
-        return Type.STRING;
+    private Address procLiteral() throws LexicalException {
+        String string = eat(TokenType.STRING);
+        return new ConstAddress(string);
     }
 
     //identifier ::= letter-under identifier-tail
