@@ -4,10 +4,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class SymbolTable {
-    private Map<String, TokenType> st;
+    private final Map<String, TokenType> st;
 
     public SymbolTable() {
-        st = new HashMap<String, TokenType>();
+        st = new HashMap<>();
 
         // SYMBOLS
         st.put("(", TokenType.OPEN_BRA);

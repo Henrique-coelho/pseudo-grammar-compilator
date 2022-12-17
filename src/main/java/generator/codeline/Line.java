@@ -1,7 +1,7 @@
 package generator.codeline;
 
 public class Line extends LineModel{
-    String line;
+    private final String line;
 
     public Line(String line){
         this.line = line;

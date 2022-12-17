@@ -1,15 +1,17 @@
 package generator;
 
 import generator.addresses.NameAddress;
+import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Getter
 public class CurrentSymbolTable {
     protected List<NameAddress> table;
-    private static int offset = 0;
+    private int offset = 0;
     public CurrentSymbolTable(){
-        this.table = new ArrayList<NameAddress>();
+        this.table = new ArrayList<>();
     }
 
     public boolean put(NameAddress addr){

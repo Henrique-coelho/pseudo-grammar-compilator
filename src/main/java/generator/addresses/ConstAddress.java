@@ -7,7 +7,7 @@ import generator.addresses.value.StringValue;
 import generator.addresses.value.Value;
 
 public class ConstAddress extends Address{
-    private Value<?> value;
+    private final Value<?> value;
 
     public ConstAddress(int value){
         super(Type.INTEGER);

@@ -11,13 +11,13 @@ public class Code {
     int nextAddr;
     int offset;
     public Code(){
-        this.code = new HashMap<Integer, LineModel>();
+        this.code = new HashMap<>();
         this.nextAddr = 100;
         this.offset = 0;
     }
 
     public Code(int startAddr){
-        this.code = new HashMap<Integer, LineModel>();
+        this.code = new HashMap<>();
         this.nextAddr = startAddr;
         this.offset = 0;
     }
@@ -28,7 +28,7 @@ public class Code {
     }
 
     public void emit(String command, String missing) throws Exception{
-        System.out.println("Emmting: "+command);
+        System.out.println("Emmiting: "+command);
         if(!command.contains(missing)){
             throw new Exception("Substring \'"+missing+"\' não presente na linha de código \'"+command+"\'que requer \'backpatch\' quando emitindo-a!");
         }
@@ -55,11 +55,14 @@ public class Code {
 
     @Override
     public String toString(){
-        String codelines = "";
-        Set<Integer> addrs = new TreeSet<Integer>(this.code.keySet());
+        StringBuilder codelines = new StringBuilder();
+        Set<Integer> addrs = new TreeSet<>(this.code.keySet());
         for (Integer addr:addrs) {
-            codelines = codelines + addr.toString()+"\t"+this.code.get(addr).showLine()+"\n";
+            codelines.append(addr.toString())
+                    .append("\t")
+                    .append(this.code.get(addr).showLine())
+                    .append("\n");
         }
-        return codelines;
+        return codelines.toString();
     }
 }

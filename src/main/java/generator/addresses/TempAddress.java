@@ -1,12 +1,14 @@
 package generator.addresses;
 
 import generator.Type;
+import lombok.Getter;
 
+@Getter
 public class TempAddress extends Address{
     private static int copies = 0;
-    private String id;
-    private int copy;
-    private int width;
+    private final String id;
+    private final int copy;
+    private final int width;
 
 
     public TempAddress(Type type){
@@ -18,19 +20,24 @@ public class TempAddress extends Address{
         switch (type){
             case INTEGER:
                 this.width = 4;
+                break;
             case FLOAT:
                 this.width = 8;
+                break;
             case STRING:
                 this.width = 40;
+                break;
             default:
                 this.width = 0;
+                break;
         }
     }
 
     @Override
     public String value() {
-        if(copy>0)
-            return id+Integer.toString(copy);
+        if(copy>0){
+            return id + copy;
+        }
         return this.id;
     }
 }

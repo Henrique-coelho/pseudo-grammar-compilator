@@ -7,8 +7,8 @@ import java.io.PushbackInputStream;
 public class LexicalAnalysis implements AutoCloseable {
 
     private int line;
-    private SymbolTable st;
-    private PushbackInputStream input;
+    private final SymbolTable st;
+    private final PushbackInputStream input;
 
     public LexicalAnalysis(String filename) throws LexicalException {
         try {
@@ -29,25 +29,21 @@ public class LexicalAnalysis implements AutoCloseable {
         return this.line;
     }
 
-    public Lexeme nextToken() throws LexicalException, IOException {
+    public Lexeme nextToken() throws LexicalException {
         Lexeme lex = new Lexeme("", TokenType.END_OF_FILE);
 
         int state = 1;
         while (state != 200 && state != 201) {
 
             int c = getc();
-            char vc = (char) c; // temp
 
             switch (state){
                 // state == 200, tipo reconhecido
                 // state == 201, tipo não reconhecido ainda
                 case 1: // Estado inicial
                     if(c == ' ' || c == '\t' || c == '\r'){
-                        state = 1;
                     } else if(c=='\n') {
                         line++;
-                        //System.out.println("Line "+line+"!");
-                        state = 1;
                     } else if(c=='*') {
                         state = 2;
                     } else if(c=='/') {
@@ -94,7 +90,6 @@ public class LexicalAnalysis implements AutoCloseable {
                         state = 4;
                     } else if (c == '\n') {
                         line++;
-                        //System.out.println("Line "+line+"!");
                         state = 4;
                     }
                     break;
@@ -119,7 +114,6 @@ public class LexicalAnalysis implements AutoCloseable {
                 case 6: // Comentário normal
                     if (c == '\n') {
                         line ++;
-                        //System.out.println("Line "+line+"!");
                         state = 1;
                     } else if(c == -1) { // EOF
                         lex.type = TokenType.END_OF_FILE;
@@ -219,8 +213,6 @@ public class LexicalAnalysis implements AutoCloseable {
 
         if (state == 201)
             lex.type = st.find(lex.token);
-
-        //System.out.println("Token: ( '" + lex.token + " '), Type: " + lex.type + ", Line: " + getLine());
         return lex;
     }
 

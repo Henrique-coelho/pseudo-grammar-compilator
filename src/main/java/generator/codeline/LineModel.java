@@ -1,6 +1,6 @@
 package generator.codeline;
 
 public abstract class LineModel {
-    String line;
+    private String line;
     public abstract String showLine();
 }

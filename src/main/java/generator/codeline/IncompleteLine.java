@@ -1,10 +1,8 @@
 package generator.codeline;
 
-import generator.addresses.value.IntegerValue;
-
 public class IncompleteLine extends LineModel{
-    String line;
-    String missing;
+    private final String line;
+    private final String missing;
 
     public IncompleteLine(String line,String missing){
         this.line = line;
@@ -22,7 +20,6 @@ public class IncompleteLine extends LineModel{
     }
 
     public Line backpatch(int addr){
-        String s = "teste";
         return new Line(line.replaceAll(missing, String.valueOf(addr)));
     }
 }

@@ -14,16 +14,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class SyntaticAnalysis {
 
-    private LexicalAnalysis lex;
+    private final LexicalAnalysis lex;
     private Lexeme current;
 
-    private CurrentSymbolTable top;
-    private Code code;
+    private final CurrentSymbolTable top;
+    private final Code code;
 
-    private List<Integer> errorList;
+    private final List<Integer> errorList;
     private int probErrorLine;
 
     public SyntaticAnalysis(LexicalAnalysis lex) throws LexicalException {
@@ -32,29 +33,17 @@ public class SyntaticAnalysis {
         this.code = new Code();
 
         this.errorList = new ArrayList<>();
-        try {
-            this.current = lex.nextToken();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        this.current = lex.nextToken();
     }
 
     private void advance() throws LexicalException {
-        try {
-            current = lex.nextToken();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        current = lex.nextToken();
     }
 
     private String eat(TokenType type) throws LexicalException {
         Lexeme food = current;
         if (type == food.type) {
-            try {
-                current = lex.nextToken();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            current = lex.nextToken();
         } else {
             showLexicalOrSyntaticError();
         }
@@ -79,16 +68,15 @@ public class SyntaticAnalysis {
         System.exit(1);
     }
 
-    public void start() throws LexicalException,SemanticException,Exception{
+    public void start() throws Exception{
         Type type = procProgram();
         System.out.println(code.toString());
         eat(TokenType.END_OF_FILE);
         if(type == Type.ERROR) {
             StringBuilder sb = new StringBuilder();
-            errorList.forEach(line -> {
-                sb.append("\n");
-                sb.append("Erro na linha "+(line));
-            });
+            errorList.forEach(line -> sb.append("\n")
+                    .append("Erro na linha ")
+                    .append(line));
             throw new SemanticException("Erro semântico! "+sb);
         }
     }
@@ -132,15 +120,15 @@ public class SyntaticAnalysis {
         Type type = procType();
         List<String> idList = procIdList();
 
-        Type type_l = Type.VOID;
+        Type typeL = Type.VOID;
         for (String id:idList) {
             if(!top.put(new NameAddress(id,type)))
-                type_l = Type.ERROR;
+                typeL = Type.ERROR;
             else
                 code.emit(type.toString()+" "+id);
         }
         eat(TokenType.SEMICOLON);
-        return type_l;
+        return typeL;
     }
 
     //ident-list ::= identifier {"," identifier}
@@ -174,7 +162,7 @@ public class SyntaticAnalysis {
     private Expression procStmtList() throws Exception{
         this.probErrorLine = this.lex.getLine();
         Expression expr = procStatement();
-        Type type = expr.type();
+        Type type = Objects.requireNonNull(expr).type();
 
 
         if (type != Type.VOID) {
@@ -189,22 +177,18 @@ public class SyntaticAnalysis {
             Expression stmtExpr = procStatement();
             Type stmtType = stmtExpr.type();
 
-            if(type == Type.VOID && stmtType == Type.VOID)
-                type = Type.VOID;
-            else
+            if(!(type == Type.VOID && stmtType == Type.VOID))
                 type = Type.ERROR;
             if (stmtType != Type.VOID) {
                 errorList.add(this.probErrorLine);
             }
         }
-        Expression listExpr = new Expression(type == Type.ERROR);
-        return listExpr;
+        return new Expression(type == Type.ERROR);
     }
 
     //stmt ::= assign-stmt ";" | if-stmt | while-stmt | read-stmt ";" | write-stmt ";"
     private Expression procStatement() throws Exception{
         Expression stmtExpr = new Expression(false);
-        Type type;
 
         if(current.type == TokenType.ID) {
             stmtExpr = procAssign();
@@ -365,7 +349,7 @@ public class SyntaticAnalysis {
         Expression expr = procWritable();
         Type type = expr.type();
 
-        if(!(type==Type.ERROR)) {
+        if((type!=Type.ERROR)) {
             code.emit("out " + expr.addr());
             expr = new Expression(false);
         }
@@ -438,64 +422,65 @@ public class SyntaticAnalysis {
             Type type2 = expr2.type();
 
             Address newAddr;
-            if(op.equals("||")){
-                if(type1==Type.INTEGER && type2==Type.INTEGER)
-                    newAddr = new TempAddress(Type.INTEGER);
-                else
-                    newAddr = new TempAddress(Type.ERROR);
-
-                Expression orExpr = new Expression(newAddr);
-                code.emit(orExpr.addr()+" = "+expr1.addr()+" || "+expr2.addr());
-                expr1 = orExpr;
-                type1 = orExpr.type();
-
-            } else if(op.equals("+")){
-                if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
-                    if(type1==Type.INTEGER && type2==Type.INTEGER)
+            switch (op) {
+                case "||":
+                    if (type1 == Type.INTEGER && type2 == Type.INTEGER)
                         newAddr = new TempAddress(Type.INTEGER);
                     else
-                        newAddr = new TempAddress(Type.FLOAT);
+                        newAddr = new TempAddress(Type.ERROR);
 
-                    Expression addExpr = new Expression(newAddr);
-                    code.emit(addExpr.addr()+" = "+expr1.addr()+" + "+expr2.addr());
-                    expr1 = addExpr;
-                    type1 = addExpr.type();
-                }
-                else if(type1==Type.STRING && type2==Type.STRING){
-                    newAddr = new TempAddress(Type.STRING);
-                    Expression addExpr = new Expression(newAddr);
-                    code.emit(addExpr.addr()+" = "+expr1.addr()+" + "+expr2.addr());
-                    expr1 = addExpr;
-                    type1 = addExpr.type();
-                }
-                else{
-                    newAddr = new TempAddress(Type.ERROR);
+                    Expression orExpr = new Expression(newAddr);
+                    code.emit(orExpr.addr() + " = " + expr1.addr() + " || " + expr2.addr());
+                    expr1 = orExpr;
+                    type1 = orExpr.type();
 
-                    Expression errExpr = new Expression(newAddr);
-                    code.emit(errExpr.addr()+" = "+expr1.addr()+" + "+expr2.addr());
-                    expr1 = errExpr;
-                    type1 = errExpr.type();
-                }
-            } else if(op.equals("-")){
-                if((type1==Type.INTEGER || type1==Type.FLOAT) && (type2==Type.INTEGER || type2==Type.FLOAT)){
-                    if(type1==Type.INTEGER && type2==Type.INTEGER)
-                        newAddr = new TempAddress(Type.INTEGER);
-                    else
-                        newAddr = new TempAddress(Type.FLOAT);
+                    break;
+                case "+":
+                    if ((type1 == Type.INTEGER || type1 == Type.FLOAT) && (type2 == Type.INTEGER || type2 == Type.FLOAT)) {
+                        if (type1 == Type.INTEGER && type2 == Type.INTEGER)
+                            newAddr = new TempAddress(Type.INTEGER);
+                        else
+                            newAddr = new TempAddress(Type.FLOAT);
 
-                    Expression subExpr = new Expression(newAddr);
-                    code.emit(subExpr.addr()+" = "+expr1.addr()+" -"+expr2.addr());
-                    expr1 = subExpr;
-                    type1 = subExpr.type();
-                }
-                else{
-                    newAddr = new TempAddress(Type.ERROR);
+                        Expression addExpr = new Expression(newAddr);
+                        code.emit(addExpr.addr() + " = " + expr1.addr() + " + " + expr2.addr());
+                        expr1 = addExpr;
+                        type1 = addExpr.type();
+                    } else if (type1 == Type.STRING && type2 == Type.STRING) {
+                        newAddr = new TempAddress(Type.STRING);
+                        Expression addExpr = new Expression(newAddr);
+                        code.emit(addExpr.addr() + " = " + expr1.addr() + " + " + expr2.addr());
+                        expr1 = addExpr;
+                        type1 = addExpr.type();
+                    } else {
+                        newAddr = new TempAddress(Type.ERROR);
 
-                    Expression errExpr = new Expression(newAddr);
-                    code.emit(errExpr.addr()+" = "+expr1.addr()+" - "+expr2.addr());
-                    expr1 = errExpr;
-                    type1 = errExpr.type();
-                }
+                        Expression errExpr = new Expression(newAddr);
+                        code.emit(errExpr.addr() + " = " + expr1.addr() + " + " + expr2.addr());
+                        expr1 = errExpr;
+                        type1 = errExpr.type();
+                    }
+                    break;
+                case "-":
+                    if ((type1 == Type.INTEGER || type1 == Type.FLOAT) && (type2 == Type.INTEGER || type2 == Type.FLOAT)) {
+                        if (type1 == Type.INTEGER && type2 == Type.INTEGER)
+                            newAddr = new TempAddress(Type.INTEGER);
+                        else
+                            newAddr = new TempAddress(Type.FLOAT);
+
+                        Expression subExpr = new Expression(newAddr);
+                        code.emit(subExpr.addr() + " = " + expr1.addr() + " -" + expr2.addr());
+                        expr1 = subExpr;
+                        type1 = subExpr.type();
+                    } else {
+                        newAddr = new TempAddress(Type.ERROR);
+
+                        Expression errExpr = new Expression(newAddr);
+                        code.emit(errExpr.addr() + " = " + expr1.addr() + " - " + expr2.addr());
+                        expr1 = errExpr;
+                        type1 = errExpr.type();
+                    }
+                    break;
             }
         }
         return expr1;
@@ -504,7 +489,7 @@ public class SyntaticAnalysis {
     //term ::= factor-a | term mulop factor-a
     private Expression procTerm() throws LexicalException{
         Expression expr1 = procFactorAct();
-        Type type1 = expr1.type();
+        Type type1 = Objects.requireNonNull(expr1).type();
 
         while(current.type == TokenType.MUL || current.type == TokenType.DIV || current.type == TokenType.AND){
             String op = procMulop();
@@ -688,13 +673,13 @@ public class SyntaticAnalysis {
     //integer_const ::= digit integer_const_tail
     private Address procIntegerConst() throws LexicalException {
         String number = eat(TokenType.INTEGER);
-        return new ConstAddress(Integer.valueOf(number));
+        return new ConstAddress(Integer.parseInt(number));
     }
 
     //float_const ::= integer_const “.” integer_const
     private Address procFloatConst() throws LexicalException {
         String number = eat(TokenType.FLOAT);
-        return new ConstAddress(Float.valueOf(number));
+        return new ConstAddress(Float.parseFloat(number));
     }
 
     //literal ::= "{" literal-rept "}"
@@ -705,13 +690,7 @@ public class SyntaticAnalysis {
 
     //identifier ::= letter-under identifier-tail
     private String procId() throws LexicalException {
-        String id = eat(TokenType.ID);
-        return id;
+        return eat(TokenType.ID);
     }
 
-    //letter-digit ::= letter | digit (sem proc)
-    //letter-under ::= letter | _ (sem proc)
-    //letter ::= [A-za-z] (sem proc)
-    //digit ::= [0-9] (sem proc)
-    //caractere ::= um dos caracteres ASCII, exceto quebra de linha (sem proc)
 }
